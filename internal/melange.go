@@ -36,7 +36,10 @@ func NewMelangeClient(repoPath string, verbose bool, logDir string, hangTimeout 
 	}
 }
 
-func (m *MelangeClient) TestPackage(packageName string, withRepo bool, apkRepo string) error {
+// runMakeTarget runs `make <makeTarget>` in repoPath for packageName.
+// logTag is inserted between package name and with/without_repo in log filenames;
+// pass an empty string to keep backward-compatible naming (e.g. "foo_with_repo.log").
+func (m *MelangeClient) runMakeTarget(packageName, makeTarget, logTag string, withRepo bool, apkRepo string) error {
 	// Check if the package YAML file exists
 	yamlFilePath := filepath.Join(m.repoPath, fmt.Sprintf("%s.yaml", packageName))
 	if _, err := os.Stat(yamlFilePath); os.IsNotExist(err) {
@@ -54,10 +57,15 @@ func (m *MelangeClient) TestPackage(packageName string, withRepo bool, apkRepo s
 	defer os.RemoveAll(tempDir)
 
 	var cmd *exec.Cmd
-	target := fmt.Sprintf("test/%s", packageName)
 
 	// Create log file name
-	logFileName := fmt.Sprintf("%s_%s.log", packageName, map[bool]string{true: "with_repo", false: "without_repo"}[withRepo])
+	repoLabel := map[bool]string{true: "with_repo", false: "without_repo"}[withRepo]
+	var logFileName string
+	if logTag == "" {
+		logFileName = fmt.Sprintf("%s_%s.log", packageName, repoLabel)
+	} else {
+		logFileName = fmt.Sprintf("%s_%s_%s.log", packageName, logTag, repoLabel)
+	}
 	logFilePath := filepath.Join(m.logDir, logFileName)
 
 	// Create and open log file
@@ -69,18 +77,20 @@ func (m *MelangeClient) TestPackage(packageName string, withRepo bool, apkRepo s
 
 	if withRepo {
 		if m.verbose {
-			fmt.Printf("Testing %s with APK repository: %s (temp: %s, log: %s)\n", packageName, apkRepo, tempDir, logFilePath)
+			fmt.Printf("Running make %s for %s with APK repository: %s (temp: %s, log: %s)\n",
+				makeTarget, packageName, apkRepo, tempDir, logFilePath)
 		}
-		cmd = exec.Command("make", target)
+		cmd = exec.Command("make", makeTarget)
 		extraOpts := fmt.Sprintf("--repository-append %s", apkRepo)
 		cmd.Env = append(os.Environ(),
 			fmt.Sprintf("MELANGE_EXTRA_OPTS=%s", extraOpts),
 			fmt.Sprintf("TMPDIR=%s", tempDir))
 	} else {
 		if m.verbose {
-			fmt.Printf("Testing %s without APK repository (temp: %s, log: %s)\n", packageName, tempDir, logFilePath)
+			fmt.Printf("Running make %s for %s without APK repository (temp: %s, log: %s)\n",
+				makeTarget, packageName, tempDir, logFilePath)
 		}
-		cmd = exec.Command("make", target)
+		cmd = exec.Command("make", makeTarget)
 		cmd.Env = append(os.Environ(), fmt.Sprintf("TMPDIR=%s", tempDir))
 	}
 
@@ -96,7 +106,7 @@ func (m *MelangeClient) TestPackage(packageName string, withRepo bool, apkRepo s
 
 	// Start the command
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start make test/%s: %w", packageName, err)
+		return fmt.Errorf("failed to start make %s: %w", makeTarget, err)
 	}
 
 	// Channel to capture the result of cmd.Wait()
@@ -109,7 +119,7 @@ func (m *MelangeClient) TestPackage(packageName string, withRepo bool, apkRepo s
 	select {
 	case err := <-done:
 		if err != nil {
-			return fmt.Errorf("make test/%s failed: %w", packageName, err)
+			return fmt.Errorf("make %s failed: %w", makeTarget, err)
 		}
 		return nil
 	case <-ctx.Done():
@@ -129,12 +139,29 @@ func (m *MelangeClient) TestPackage(packageName string, withRepo bool, apkRepo s
 		<-done
 
 		// Write timeout message to log
-		fmt.Fprintf(logFile, "\n\n=== TEST HUNG - KILLED AFTER %v ===\n", m.hangTimeout)
+		fmt.Fprintf(logFile, "\n\n=== HUNG - KILLED AFTER %v ===\n", m.hangTimeout)
 
 		if m.verbose {
-			fmt.Printf("Test %s hung and was killed after %v\n", packageName, m.hangTimeout)
+			fmt.Printf("make %s for %s hung and was killed after %v\n", makeTarget, packageName, m.hangTimeout)
 		}
 
 		return ErrTestHung
 	}
+}
+
+func (m *MelangeClient) TestPackage(packageName string, withRepo bool, apkRepo string) error {
+	return m.runMakeTarget(packageName, fmt.Sprintf("test/%s", packageName), "", withRepo, apkRepo)
+}
+
+// BuildPackage runs the build make target for packageName.
+// If makeTargetPrefix is empty the target is the package name alone; otherwise
+// it is "<makeTargetPrefix>/<packageName>".
+func (m *MelangeClient) BuildPackage(packageName string, withRepo bool, apkRepo string, makeTargetPrefix string) error {
+	var target string
+	if makeTargetPrefix == "" {
+		target = packageName
+	} else {
+		target = fmt.Sprintf("%s/%s", makeTargetPrefix, packageName)
+	}
+	return m.runMakeTarget(packageName, target, "build", withRepo, apkRepo)
 }
