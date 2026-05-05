@@ -18,22 +18,21 @@ import (
 )
 
 type BuildRegressionRunner struct {
-	buildDep         string
-	apkRepo          string
-	repoPath         string
-	makeTargetPrefix string
-	concurrency      int
-	verbose          bool
-	logDir           string
-	hangTimeout      time.Duration
-	markdownOutput   bool
-	melange          *MelangeClient
-	completedTests   int64
-	totalTests       int64
-	startTime        time.Time
+	buildDep       string
+	apkRepo        string
+	repoPath       string
+	concurrency    int
+	verbose        bool
+	logDir         string
+	hangTimeout    time.Duration
+	markdownOutput bool
+	melange        *MelangeClient
+	completedTests int64
+	totalTests     int64
+	startTime      time.Time
 }
 
-func NewBuildRegressionRunner(buildDep, apkRepo, repoPath, makeTargetPrefix string, concurrency int, verbose bool, hangTimeout time.Duration, markdownOutput bool) *BuildRegressionRunner {
+func NewBuildRegressionRunner(buildDep, apkRepo, repoPath string, concurrency int, verbose bool, hangTimeout time.Duration, markdownOutput bool) *BuildRegressionRunner {
 	// Create log directory with timestamp to avoid collisions between runs
 	timestamp := time.Now().Format("20060102-150405")
 	logDir := filepath.Join("logs", fmt.Sprintf("build-regression-%s-%s", buildDep, timestamp))
@@ -45,20 +44,19 @@ func NewBuildRegressionRunner(buildDep, apkRepo, repoPath, makeTargetPrefix stri
 	}
 
 	return &BuildRegressionRunner{
-		buildDep:         buildDep,
-		apkRepo:          apkRepo,
-		repoPath:         repoPath,
-		makeTargetPrefix: makeTargetPrefix,
-		concurrency:      concurrency,
-		verbose:          verbose,
-		logDir:           logDir,
-		hangTimeout:      hangTimeout,
-		markdownOutput:   markdownOutput,
-		melange:          NewMelangeClient(repoPath, verbose, logDir, hangTimeout),
+		buildDep:       buildDep,
+		apkRepo:        apkRepo,
+		repoPath:       repoPath,
+		concurrency:    concurrency,
+		verbose:        verbose,
+		logDir:         logDir,
+		hangTimeout:    hangTimeout,
+		markdownOutput: markdownOutput,
+		melange:        NewMelangeClient(repoPath, verbose, logDir, hangTimeout),
 	}
 }
 
-func NewBuildRegressionRunnerFromPackageList(packages []string, apkRepo, repoPath, makeTargetPrefix string, concurrency int, verbose bool, hangTimeout time.Duration, markdownOutput bool) *BuildRegressionRunner {
+func NewBuildRegressionRunnerFromPackageList(packages []string, apkRepo, repoPath string, concurrency int, verbose bool, hangTimeout time.Duration, markdownOutput bool) *BuildRegressionRunner {
 	// Create log directory with timestamp to avoid collisions between runs
 	timestamp := time.Now().Format("20060102-150405")
 	logDir := filepath.Join("logs", fmt.Sprintf("build-regression-list-%s", timestamp))
@@ -70,16 +68,15 @@ func NewBuildRegressionRunnerFromPackageList(packages []string, apkRepo, repoPat
 	}
 
 	return &BuildRegressionRunner{
-		buildDep:         fmt.Sprintf("%d packages from file", len(packages)),
-		apkRepo:          apkRepo,
-		repoPath:         repoPath,
-		makeTargetPrefix: makeTargetPrefix,
-		concurrency:      concurrency,
-		verbose:          verbose,
-		logDir:           logDir,
-		hangTimeout:      hangTimeout,
-		markdownOutput:   markdownOutput,
-		melange:          NewMelangeClient(repoPath, verbose, logDir, hangTimeout),
+		buildDep:       fmt.Sprintf("%d packages from file", len(packages)),
+		apkRepo:        apkRepo,
+		repoPath:       repoPath,
+		concurrency:    concurrency,
+		verbose:        verbose,
+		logDir:         logDir,
+		hangTimeout:    hangTimeout,
+		markdownOutput: markdownOutput,
+		melange:        NewMelangeClient(repoPath, verbose, logDir, hangTimeout),
 	}
 }
 
@@ -182,7 +179,7 @@ func (r *BuildRegressionRunner) runPackages(packages []string) error {
 			defer sem.Release(1)
 
 			// First attempt: build with the new APK repository
-			err := r.melange.BuildPackage(packageName, true, r.apkRepo, r.makeTargetPrefix)
+			err := r.melange.BuildPackage(packageName, true, r.apkRepo)
 
 			withRepoResult := TestResult{
 				Package:  packageName,
@@ -197,7 +194,7 @@ func (r *BuildRegressionRunner) runPackages(packages []string) error {
 			// Only attempt without the repo if the build failed and wasn't skipped or hung.
 			// A hung build indicates a pre-existing infrastructure problem, not a regression.
 			if !withRepoResult.Success && !withRepoResult.Skipped && !withRepoResult.Hung {
-				err := r.melange.BuildPackage(packageName, false, r.apkRepo, r.makeTargetPrefix)
+				err := r.melange.BuildPackage(packageName, false, r.apkRepo)
 
 				// Skip if YAML file not found (shouldn't happen since we already checked, but for safety)
 				if errors.Is(err, ErrPackageYAMLNotFound) {

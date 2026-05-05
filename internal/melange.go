@@ -153,15 +153,7 @@ func (m *MelangeClient) TestPackage(packageName string, withRepo bool, apkRepo s
 	return m.runMakeTarget(packageName, fmt.Sprintf("test/%s", packageName), "", withRepo, apkRepo)
 }
 
-// BuildPackage runs the build make target for packageName.
-// If makeTargetPrefix is empty the target is the package name alone; otherwise
-// it is "<makeTargetPrefix>/<packageName>".
-func (m *MelangeClient) BuildPackage(packageName string, withRepo bool, apkRepo string, makeTargetPrefix string) error {
-	var target string
-	if makeTargetPrefix == "" {
-		target = packageName
-	} else {
-		target = fmt.Sprintf("%s/%s", makeTargetPrefix, packageName)
-	}
-	return m.runMakeTarget(packageName, target, "build", withRepo, apkRepo)
+// BuildPackage runs `make package/<packageName>` in repoPath.
+func (m *MelangeClient) BuildPackage(packageName string, withRepo bool, apkRepo string) error {
+	return m.runMakeTarget(packageName, fmt.Sprintf("package/%s", packageName), "build", withRepo, apkRepo)
 }

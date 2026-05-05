@@ -14,13 +14,12 @@ import (
 )
 
 var (
-	rebuildMakeTargetPrefix string
-	rebuildHangTimeout      time.Duration
-	rebuildMarkdownOutput   bool
-	rebuildVerbose          bool
-	rebuildConcurrency      int
-	rebuildPackageName      string
-	rebuildPackageFile      string
+	rebuildHangTimeout    time.Duration
+	rebuildMarkdownOutput bool
+	rebuildVerbose        bool
+	rebuildConcurrency    int
+	rebuildPackageName    string
+	rebuildPackageFile    string
 )
 
 var rebuildCmd = &cobra.Command{
@@ -48,8 +47,6 @@ func init() {
 	rebuildCmd.Flags().BoolVarP(&rebuildVerbose, "verbose", "v", false, "Enable verbose output")
 	rebuildCmd.Flags().DurationVar(&rebuildHangTimeout, "hang-timeout", 2*time.Hour, "Timeout for hung builds")
 	rebuildCmd.Flags().BoolVarP(&rebuildMarkdownOutput, "markdown", "m", false, "Output summary in markdown format")
-	rebuildCmd.Flags().StringVar(&rebuildMakeTargetPrefix, "make-target-prefix", "", `Prefix for the make build target. Empty means "make <package>";
-"package" means "make package/<package>"`)
 
 	rebuildCmd.MarkFlagRequired("repo")
 	rebuildCmd.MarkFlagRequired("repo-path")
@@ -83,14 +80,14 @@ func runRebuild(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to read package file: %w", err)
 		}
 		runner := internal.NewBuildRegressionRunnerFromPackageList(
-			packages, apkRepo, repoPath, rebuildMakeTargetPrefix,
+			packages, apkRepo, repoPath,
 			rebuildConcurrency, rebuildVerbose, rebuildHangTimeout, rebuildMarkdownOutput,
 		)
 		return runner.RunFromPackageList(packages)
 	}
 
 	runner := internal.NewBuildRegressionRunner(
-		rebuildPackageName, apkRepo, repoPath, rebuildMakeTargetPrefix,
+		rebuildPackageName, apkRepo, repoPath,
 		rebuildConcurrency, rebuildVerbose, rebuildHangTimeout, rebuildMarkdownOutput,
 	)
 	return runner.Run()
