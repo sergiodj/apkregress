@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 
@@ -28,7 +29,19 @@ type melangeYAML struct {
 
 // GetBuildDependents scans all *.yaml files in repoPath and returns the
 // origin names of packages that list pkgName as a direct build dependency.
-func GetBuildDependents(repoPath, pkgName string, verbose bool) ([]string, error) {
+// Packages that also have a build dependency matching any regexp in excludePatterns
+// are omitted from the results.
+func GetBuildDependents(repoPath, pkgName string, excludePatterns []string, verbose bool) ([]string, error) {
+	// Compile exclude patterns up front so we catch invalid regexps before scanning
+	excludeRegexps := make([]*regexp.Regexp, 0, len(excludePatterns))
+	for _, pattern := range excludePatterns {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("invalid --exclude pattern %q: %w", pattern, err)
+		}
+		excludeRegexps = append(excludeRegexps, re)
+	}
+
 	// Collect all melange YAML files in the repository
 	entries, err := filepath.Glob(filepath.Join(repoPath, "*.yaml"))
 	if err != nil {
@@ -63,10 +76,32 @@ func GetBuildDependents(repoPath, pkgName string, verbose bool) ([]string, error
 		}
 
 		// Check whether pkgName appears in the build environment's package list
-		if slices.Contains(pkg.Environment.Contents.Packages, pkgName) {
-				seen[origin] = true
-				results = append(results, origin)
+		if !slices.Contains(pkg.Environment.Contents.Packages, pkgName) {
+			continue
 		}
+
+		// Skip packages that have a build dependency matching any exclude pattern
+		excluded := false
+		for _, re := range excludeRegexps {
+			for _, dep := range pkg.Environment.Contents.Packages {
+				if re.MatchString(dep) {
+					if verbose {
+						fmt.Printf("Excluding %s: build-depends on %s (matches %s)\n", origin, dep, re)
+					}
+					excluded = true
+					break
+				}
+			}
+			if excluded {
+				break
+			}
+		}
+		if excluded {
+			continue
+		}
+
+		seen[origin] = true
+		results = append(results, origin)
 	}
 
 	sort.Strings(results)

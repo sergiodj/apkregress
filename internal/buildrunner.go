@@ -19,6 +19,7 @@ import (
 
 type BuildRegressionRunner struct {
 	buildDep       string
+	excludeDeps    []string
 	apkRepo        string
 	repoPath       string
 	concurrency    int
@@ -32,7 +33,7 @@ type BuildRegressionRunner struct {
 	startTime      time.Time
 }
 
-func NewBuildRegressionRunner(buildDep, apkRepo, repoPath string, concurrency int, verbose bool, hangTimeout time.Duration, markdownOutput bool) *BuildRegressionRunner {
+func NewBuildRegressionRunner(buildDep, apkRepo, repoPath string, excludeDeps []string, concurrency int, verbose bool, hangTimeout time.Duration, markdownOutput bool) *BuildRegressionRunner {
 	// Create log directory with timestamp to avoid collisions between runs
 	timestamp := time.Now().Format("20060102-150405")
 	logDir := filepath.Join("logs", fmt.Sprintf("build-regression-%s-%s", buildDep, timestamp))
@@ -45,6 +46,7 @@ func NewBuildRegressionRunner(buildDep, apkRepo, repoPath string, concurrency in
 
 	return &BuildRegressionRunner{
 		buildDep:       buildDep,
+		excludeDeps:    excludeDeps,
 		apkRepo:        apkRepo,
 		repoPath:       repoPath,
 		concurrency:    concurrency,
@@ -126,8 +128,9 @@ func (r *BuildRegressionRunner) Run() error {
 		return fmt.Errorf("failed to create log directory %s: %w", r.logDir, err)
 	}
 
-	// Find all packages in the repository that list r.buildDep as a build dependency
-	buildDeps, err := GetBuildDependents(r.repoPath, r.buildDep, r.verbose)
+	// Find all packages in the repository that list r.buildDep as a build dependency,
+	// excluding any that also depend on one of the excluded packages
+	buildDeps, err := GetBuildDependents(r.repoPath, r.buildDep, r.excludeDeps, r.verbose)
 	if err != nil {
 		return fmt.Errorf("failed to find build dependents: %w", err)
 	}

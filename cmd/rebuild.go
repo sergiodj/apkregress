@@ -20,6 +20,7 @@ var (
 	rebuildConcurrency    int
 	rebuildPackageName    string
 	rebuildPackageFile    string
+	rebuildExcludeDeps    []string
 )
 
 var rebuildCmd = &cobra.Command{
@@ -47,6 +48,7 @@ func init() {
 	rebuildCmd.Flags().BoolVarP(&rebuildVerbose, "verbose", "v", false, "Enable verbose output")
 	rebuildCmd.Flags().DurationVar(&rebuildHangTimeout, "hang-timeout", 2*time.Hour, "Timeout for hung builds")
 	rebuildCmd.Flags().BoolVarP(&rebuildMarkdownOutput, "markdown", "m", false, "Output summary in markdown format")
+	rebuildCmd.Flags().StringArrayVar(&rebuildExcludeDeps, "exclude", nil, "Exclude packages that build-depend on this package (repeatable)")
 
 	rebuildCmd.MarkFlagRequired("repo")
 	rebuildCmd.MarkFlagRequired("repo-path")
@@ -87,7 +89,7 @@ func runRebuild(cmd *cobra.Command, args []string) error {
 	}
 
 	runner := internal.NewBuildRegressionRunner(
-		rebuildPackageName, apkRepo, repoPath,
+		rebuildPackageName, apkRepo, repoPath, rebuildExcludeDeps,
 		rebuildConcurrency, rebuildVerbose, rebuildHangTimeout, rebuildMarkdownOutput,
 	)
 	return runner.Run()
